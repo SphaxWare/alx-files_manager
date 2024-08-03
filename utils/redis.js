@@ -9,18 +9,19 @@ class RedisClient {
       console.error('Redis client not connected to the server: ', err);
     });
 
-    //from callback-based to promises
+    // from callback-based to promises
     this.getAsync = promisify(this.client.get).bind(this.client);
     this.setAsync = promisify(this.client.set).bind(this.client);
     this.delAsync = promisify(this.client.del).bind(this.client);
   }
 
   isAlive() {
+    console.log('Checking if Redis client is alive:', this.client.connected);
     return this.client.connected;
   }
 
   async get(key) {
-    return await this.getAsync(key);
+    return this.getAsync(key);
   }
 
   async set(key, value, duration) {
