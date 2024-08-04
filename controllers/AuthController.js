@@ -1,7 +1,7 @@
-import redisClient from '../utils/redis';
-import dbClient from '../utils/db';
 import { v4 as uuidv4 } from 'uuid';
 import sha1 from 'sha1';
+import redisClient from '../utils/redis';
+import dbClient from '../utils/db';
 
 export default class AuthController {
   static async getConnect(req, res) {
@@ -15,7 +15,7 @@ export default class AuthController {
     const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
     const [email, password] = credentials.split(':');
 
-    if (!email || !password) { return response.status(401).send({ error: 'Unauthorized' }); }
+    if (!email || !password) { return res.status(401).send({ error: 'Unauthorized' }); }
 
     const hashedPassword = sha1(password);
     const user = await dbClient.db.collection('users').findOne({ email, password: hashedPassword });
