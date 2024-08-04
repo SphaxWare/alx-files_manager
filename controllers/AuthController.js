@@ -15,6 +15,8 @@ export default class AuthController {
     const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
     const [email, password] = credentials.split(':');
 
+    if (!email || !password) { return response.status(401).send({ error: 'Unauthorized' }); }
+
     const hashedPassword = sha1(password);
     const user = await dbClient.db.collection('users').findOne({ email, password: hashedPassword });
 
@@ -23,7 +25,7 @@ export default class AuthController {
     }
 
     const token = uuidv4();
-    await redisClient.set(`auth_${token}`, user._id.toString(), 86400);
+    await redisClient.set(`auth_${token}`, user._id.toString(), 24 * 3600);
 
     return res.status(200).json({ token });
   }
