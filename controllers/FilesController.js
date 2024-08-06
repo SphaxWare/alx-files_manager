@@ -140,4 +140,66 @@ export default class FilesController {
 
     return res.json(fileDocs);
   }
+
+  static async putPublish(req, res) {
+    const token = req.header('X-Token');
+    const userId = await redisClient.get(`auth_${token}`);
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const fileId = req.params.id;
+    const file = await dbClient.db.collection('files').findOne({ _id: ObjectId(fileId), userId: ObjectId(userId) });
+
+    if (!file) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    await dbClient.db.collection('files').updateOne({ _id: ObjectId(fileId) }, { $set: { isPublic: true } });
+
+    const updatedFile = await dbClient.db.collection('files').findOne({ _id: ObjectId(fileId) });
+
+    const fileDoc = {
+      id: updatedFile._id,
+      userId: updatedFile.userId,
+      name: updatedFile.name,
+      type: updatedFile.type,
+      isPublic: updatedFile.isPublic,
+      parentId: updatedFile.parentId,
+    };
+
+    return res.status(200).json(fileDoc);
+  }
+
+  static async putUnpublish(req, res) {
+    const token = req.header('X-Token');
+    const userId = await redisClient.get(`auth_${token}`);
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const fileId = req.params.id;
+    const file = await dbClient.db.collection('files').findOne({ _id: ObjectId(fileId), userId: ObjectId(userId) });
+
+    if (!file) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    await dbClient.db.collection('files').updateOne({ _id: ObjectId(fileId) }, { $set: { isPublic: false } });
+
+    const updatedFile = await dbClient.db.collection('files').findOne({ _id: ObjectId(fileId) });
+
+    const fileDoc = {
+      id: updatedFile._id,
+      userId: updatedFile.userId,
+      name: updatedFile.name,
+      type: updatedFile.type,
+      isPublic: updatedFile.isPublic,
+      parentId: updatedFile.parentId,
+    };
+
+    return res.status(200).json(fileDoc);
+  }
 }
