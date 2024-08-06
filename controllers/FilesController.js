@@ -202,4 +202,48 @@ export default class FilesController {
 
     return res.status(200).json(fileDoc);
   }
+
+  static async getFile(req, res) {
+    const { id } = req.params;
+    const token = req.headers['x-token'];
+
+    // Retrieve the user based on the token
+    const user = await dbClient.getUserFromToken(token);
+    if (!user) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    // Retrieve the file document from the DB based on the ID
+    const fileDocument = await dbClient.getFileById(id);
+    if (!fileDocument) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    // Check if the file is not public and if the user is not the owner
+    if (!fileDocument.isPublic && fileDocument.userId !== user._id.toString()) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    // Check if the file type is a folder
+    if (fileDocument.type === 'folder') {
+      return res.status(400).json({ error: "A folder doesn't have content" });
+    }
+
+    // Check if the file is locally present
+    if (!fs.existsSync(fileDocument.localPath)) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    // Get the MIME type based on the file name
+    const mimeType = mime.lookup(fileDocument.name) || 'application/octet-stream';
+
+    // Read the file content and return it with the correct MIME type
+    fs.readFile(fileDocument.localPath, (err, data) => {
+      if (err) {
+        return res.status(500).json({ error: 'Error reading file' });
+      }
+      res.setHeader('Content-Type', mimeType);
+      res.send(data);
+    });
+  }
 }
