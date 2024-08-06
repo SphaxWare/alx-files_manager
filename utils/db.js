@@ -1,4 +1,5 @@
 import { MongoClient , ObjectId} from 'mongodb';
+import redisClient from './redis';
 
 
 class DBClient {
@@ -40,7 +41,11 @@ class DBClient {
 
   async getUserFromToken(token) {
     const usersCollection = this.db.collection('users');
-    const user = await usersCollection.findOne({ token });
+    const userId = await redisClient.get(`auth_${token}`);
+    if (!userId) {
+      return null;
+    }
+    const user = await usersCollection.findOne({ _id: ObjectId(userId) });
     return user;
   }
 
