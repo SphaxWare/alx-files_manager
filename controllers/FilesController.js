@@ -1,9 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
-import { promises as fs } from 'fs';
 import path from 'path';
 import { ObjectId } from 'mongodb';
+import mime from 'mime-types';
 import dbClient from '../utils/db';
 import redisClient from '../utils/redis';
+
+const fs = require('fs');
 
 const FOLDER_PATH = process.env.FOLDER_PATH || '/tmp/files_manager';
 
@@ -210,43 +212,52 @@ export default class FilesController {
     const { id } = req.params;
     const token = req.headers['x-token'];
 
-    // Retrieve the user based on the token
-    const user = await dbClient.getUserFromToken(token);
-    if (!user) {
-      return res.status(404).json({ error: 'Not found' });
-    }
-
-    // Retrieve the file document from the DB based on the ID
-    const fileDocument = await dbClient.getFileById(id);
-    if (!fileDocument) {
-      return res.status(404).json({ error: 'Not found' });
-    }
-
-    // Check if the file is not public and if the user is not the owner
-    if (!fileDocument.isPublic && fileDocument.userId !== user._id.toString()) {
-      return res.status(404).json({ error: 'Not found' });
-    }
-
-    // Check if the file type is a folder
-    if (fileDocument.type === 'folder') {
-      return res.status(400).json({ error: "A folder doesn't have content" });
-    }
-
-    // Check if the file is locally present
-    if (!fs.existsSync(fileDocument.localPath)) {
-      return res.status(404).json({ error: 'Not found' });
-    }
-
-    // Get the MIME type based on the file name
-    const mimeType = mime.lookup(fileDocument.name) || 'application/octet-stream';
-
-    // Read the file content and return it with the correct MIME type
-    fs.readFile(fileDocument.localPath, (err, data) => {
-      if (err) {
-        return res.status(500).json({ error: 'Error reading file' });
+    try {
+      // Retrieve the user based on the token
+      const user = await dbClient.getUserFromToken(token);
+      if (!user) {
+        return res.status(404).json({ error: 'Not found' });
       }
+
+      // Retrieve the file document from the DB based on the ID
+      const fileDocument = await dbClient.getFileById(id);
+      if (!fileDocument) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+
+      // Check if the file is not public and if the user is not the owner
+      if (!fileDocument.isPublic && fileDocument.userId.toString() !== user._id.toString()) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+
+      // Check if the file type is a folder
+      if (fileDocument.type === 'folder') {
+        return res.status(400).json({ error: "A folder doesn't have content" });
+      }
+
+      // Check if the file is locally present
+      if (!fs.existsSync(fileDocument.localPath)) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+
+      // Get the MIME type based on the file name
+      const mimeType = mime.lookup(fileDocument.name) || 'application/octet-stream';
+
+      // Read the file content and return it with the correct MIME type
+      const fileContent = await new Promise((resolve, reject) => {
+        fs.readFile(fileDocument.localPath, (err, data) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve(data);
+        });
+      });
+
       res.setHeader('Content-Type', mimeType);
-      res.send(data);
-    });
+      return res.status(200).send(fileContent);
+    } catch (error) {
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
   }
 }
