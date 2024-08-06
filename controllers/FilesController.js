@@ -72,6 +72,8 @@ export default class FilesController {
     await fs.mkdir(FOLDER_PATH, { recursive: true });
     await fs.writeFile(localPath, Buffer.from(data, 'base64'));
 
+    fileDocument.localPath = localPath;
+
     const result = await dbClient.db.collection('files').insertOne(fileDocument);
     return res.status(201).json({
       id: result.insertedId,
@@ -80,6 +82,7 @@ export default class FilesController {
       type,
       isPublic,
       parentId: fileDocument.parentId,
+      localPath,
     });
   }
 
