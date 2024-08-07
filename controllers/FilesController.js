@@ -4,8 +4,10 @@ import { ObjectId } from 'mongodb';
 import mime from 'mime-types';
 import dbClient from '../utils/db';
 import redisClient from '../utils/redis';
-import fileQueue from '../worker';
 
+const Bull = require('bull');
+
+const fileQueue = new Bull('fileQueue');
 const fs = require('fs');
 
 const FOLDER_PATH = process.env.FOLDER_PATH || '/tmp/files_manager';
@@ -78,6 +80,12 @@ export default class FilesController {
     fileDocument.localPath = localPath;
 
     const result = await dbClient.db.collection('files').insertOne(fileDocument);
+
+    // Add a job to the queue for image thumbnails if the file type is image
+    if (type === 'image') {
+      await fileQueue.add({ userId, fileId: result.insertedId });
+    }
+
     return res.status(201).json({
       id: result.insertedId,
       userId,
@@ -234,16 +242,6 @@ export default class FilesController {
       // Check if the file type is a folder
       if (fileDocument.type === 'folder') {
         return res.status(400).json({ error: "A folder doesn't have content" });
-      }
-
-      //  accept a query parameter size
-      let filePath = fileDocument.localPath;
-      if (size) {
-        const validSizes = ['100', '250', '500'];
-        if (!validSizes.includes(size)) {
-          return res.status(400).json({ error: 'Invalid size parameter' });
-        }
-        filePath = `${filePath}_${size}`;
       }
 
       // Check if the file is locally present

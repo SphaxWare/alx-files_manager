@@ -1,37 +1,40 @@
-const Queue = require('bull');
-const thumbnail = require('image-thumbnail');
-const dbClient = require('./utils/db');
-const fs = require('fs');
-const path = require('path');
+const Bull = require('bull');
 
-const fileQueue = new Queue('fileQueue');
+const fileQueue = new Bull('fileQueue');
+const imageThumbnail = require('image-thumbnail');
+const fs = require('fs').promises;
+const { ObjectId } = require('mongodb');
+const dbClient = require('./utils/db');
 
 fileQueue.process(async (job, done) => {
-  const { userId, fileId } = job.data;
-
-  if (!fileId) {
-    return done(new Error('Missing fileId'));
-  }
-  if (!userId) {
-    return done(new Error('Missing userId'));
-  }
-
-  const fileDocument = await dbClient.getFileById(fileId);
-
-  if (!fileDocument || fileDocument.userId.toString() !== userId) {
-    return done(new Error('File not found'));
-  }
-
-  const sizes = [500, 250, 100];
-  const originalFilePath = fileDocument.localPath;
-
   try {
-    for (const size of sizes) {
-      const options = { width: size };
-      const thumbnailBuffer = await thumbnail(originalFilePath, options);
-      const thumbnailPath = `${originalFilePath}_${size}`;
-      fs.writeFileSync(thumbnailPath, thumbnailBuffer);
+    const { userId, fileId } = job.data;
+
+    if (!fileId) {
+      return done(new Error('Missing fileId'));
     }
+
+    if (!userId) {
+      return done(new Error('Missing userId'));
+    }
+
+    const fileDocument = await dbClient.db.collection('files').findOne({
+      _id: ObjectId(fileId),
+      userId: ObjectId(userId)
+    });
+
+    if (!fileDocument) {
+      return done(new Error('File not found'));
+    }
+
+    const filePath = fileDocument.localPath; // Assuming `localPath` is the path where the file is stored
+
+    const sizes = [500, 250, 100];
+    await Promise.all(sizes.map(async (size) => {
+      const thumbnail = await imageThumbnail(filePath, { width: size });
+      await fs.writeFile(`${filePath}_${size}`, thumbnail);
+    }));
+
     done();
   } catch (error) {
     done(error);
