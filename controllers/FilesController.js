@@ -4,6 +4,7 @@ import { ObjectId } from 'mongodb';
 import mime from 'mime-types';
 import dbClient from '../utils/db';
 import redisClient from '../utils/redis';
+import fileQueue from '../worker';
 
 const fs = require('fs');
 
@@ -233,6 +234,16 @@ export default class FilesController {
       // Check if the file type is a folder
       if (fileDocument.type === 'folder') {
         return res.status(400).json({ error: "A folder doesn't have content" });
+      }
+
+      //  accept a query parameter size
+      let filePath = fileDocument.localPath;
+      if (size) {
+        const validSizes = ['100', '250', '500'];
+        if (!validSizes.includes(size)) {
+          return res.status(400).json({ error: 'Invalid size parameter' });
+        }
+        filePath = `${filePath}_${size}`;
       }
 
       // Check if the file is locally present
